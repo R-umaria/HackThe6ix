@@ -25,26 +25,38 @@ options = FaceLandmarkerOptions(
 # Half Closed ~ 0.2
 # Closed ~ < 0.2
 EAR_THRESHOLD = 0.25
-
+BLENDSHAPE_THRESHOLD = 0.5
+MAR_THRESHOLD = 0.6  # Adjusted for mouth openness detection
 BLINK_FRAMES = 2 # Frames required for a blink - avoid false positives
 DROWSY_FRAMES = 15 # ~0.6 sec at 24 FPS
-
-blink_counter = 0
-frame_counter = 0
-drowsy = False
-blink_in_progress = False
+DROWSY_SCORE_LIMIT = 5
 
 # Eye landmark indices (based on MediaPipe's 468 landmark model) - CONFIRM
 LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [263, 387, 385, 362, 380, 373]
+MOUTH_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308]
+
+blink_counter = 0
+frame_counter = 0
+drowsy_score = 0
+mouth_open_frames = 0
+blink_in_progress = False
+drowsy_displayed = False
 
 # Function to draw lines connecting landmarks of the eye
-def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=1):
+def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
     points = [(int(landmarks[i].x * frame.shape[1]), int(landmarks[i].y * frame.shape[0])) for i in eye_indices]
     for i in range(len(points) - 1):
         cv2.line(frame, points[i], points[i+1], color, thickness)
     # Optionally connect last to first to close the contour
     cv2.line(frame, points[-1], points[0], color, thickness)
+
+def draw_mouth_contour(frame, landmarks, mouth_indices, color=(0, 255, 0), thickness=2):
+    points = [(int(landmarks[i].x * frame.shape[1]), int(landmarks[i].y * frame.shape[0])) for i in mouth_indices]
+    for i in range(len(points) - 1):
+        cv2.line(frame, points[i], points[i+1], color, thickness)
+    cv2.line(frame, points[-1], points[0], color, thickness)
+
 
 def euclidean_dist(p1, p2):
     return np.linalg.norm(np.array([p1.x, p1.y]) - np.array([p2.x, p2.y]))
@@ -56,9 +68,17 @@ def compute_ear(eye_landmarks):
     ear = (A + B) / (2.0 * C)
     return ear
 
+def compute_mar(mouth_landmarks):
+    vertical = np.mean([
+        euclidean_dist(mouth_landmarks[3], mouth_landmarks[9]),  # 178-324
+        euclidean_dist(mouth_landmarks[4], mouth_landmarks[8]),  # 87-318
+        euclidean_dist(mouth_landmarks[5], mouth_landmarks[7])   # 14-402
+    ])
+    horizontal = euclidean_dist(mouth_landmarks[0], mouth_landmarks[10])  # 78-308
+    return vertical / horizontal
+
 # Start Webcam Feed
 cap = cv2.VideoCapture(0)
-
 frame_index = 0
 
 with FaceLandmarker.create_from_options(options) as landmarker:
@@ -69,8 +89,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-        # results = landmarker.detect(mp_image)
-        timestamp_ms = int(frame_index * (1000 / 24))  # assuming 24 FPS
+        timestamp_ms = int(frame_index * (1000 / 24))  # ~24 FPS
         results = landmarker.detect_for_video(mp_image, timestamp_ms=timestamp_ms)
         frame_index += 1
 
@@ -84,6 +103,9 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             right_ear = compute_ear(right_eye_landmarks)
             avg_ear = (left_ear + right_ear) / 2.0
 
+            mouth_landmarks = [landmarks[i] for i in MOUTH_INNER]
+            mar = compute_mar(mouth_landmarks)
+
             # Default: no blendshape scores
             left_blink_score = 0
             right_blink_score = 0
@@ -95,11 +117,13 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                         left_blink_score = cat.score
                     elif cat.category_name == 'eyeBlinkRight':
                         right_blink_score = cat.score
-            BLENDSHAPE_THRESHOLD = 0.5
-            eyes_closed_by_blendshape = (left_blink_score > BLENDSHAPE_THRESHOLD and right_blink_score > BLENDSHAPE_THRESHOLD)
-            eyes_closed_by_ear = (left_ear < EAR_THRESHOLD and right_ear < EAR_THRESHOLD)
 
-            eyes_closed = eyes_closed_by_blendshape or eyes_closed_by_ear
+            eyes_closed = (
+                (left_blink_score > BLENDSHAPE_THRESHOLD and right_blink_score > BLENDSHAPE_THRESHOLD) or 
+                (avg_ear < EAR_THRESHOLD)
+            )
+
+            mouth_open = mar > MAR_THRESHOLD
 
             if eyes_closed:
                 frame_counter += 1
@@ -109,13 +133,25 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                     blink_in_progress = True
                     print(f"Blink detected! Total: {blink_counter}")
 
-                if frame_counter >= DROWSY_FRAMES and not drowsy:
-                    drowsy = True
-                    print("Drowsiness detected!")
+                if frame_counter >= DROWSY_FRAMES:
+                    drowsy_score += 1
+                    if drowsy_score >= DROWSY_SCORE_LIMIT and not drowsy_displayed:
+                        print("Drowsiness detected!")
+                        drowsy_displayed = True
+                    elif drowsy_score < DROWSY_SCORE_LIMIT:
+                        drowsy_displayed = False
             else:
                 frame_counter = 0
-                drowsy = False
+                drowsy_score = max(0, drowsy_score - 1)
                 blink_in_progress = False
+            
+            if mouth_open:
+                mouth_open_frames += 1
+                if mouth_open_frames > 10:
+                    print("Yawn detected!")
+            else:
+                mouth_open_frames = 0
+
 
             # Draw eye landmarks
             for idx in LEFT_EYE + RIGHT_EYE:
@@ -125,13 +161,16 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             
             draw_eye_contour(frame, landmarks, LEFT_EYE)
             draw_eye_contour(frame, landmarks, RIGHT_EYE)
+            draw_mouth_contour(frame, landmarks, MOUTH_INNER)
 
             # Overlay info
             cv2.putText(frame, f"Blinks: {blink_counter}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
             cv2.putText(frame, f"EAR: {avg_ear:.2f}", (10, 70),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
-            if drowsy:
+            cv2.putText(frame, f"MAR: {mar:.2f}", (10, 100),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
+            if drowsy_score >= DROWSY_SCORE_LIMIT:
                 cv2.putText(frame, "DROWSY!", (10, 110),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
