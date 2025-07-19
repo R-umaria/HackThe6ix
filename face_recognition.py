@@ -26,7 +26,7 @@ options = FaceLandmarkerOptions(
 # Closed ~ < 0.2
 EAR_THRESHOLD = 0.25
 BLENDSHAPE_THRESHOLD = 0.5
-MAR_THRESHOLD = 0.6  # Adjusted for mouth openness detection
+MAR_THRESHOLD = 0.5  # Adjusted for mouth openness detection
 BLINK_FRAMES = 2 # Frames required for a blink - avoid false positives
 DROWSY_FRAMES = 15 # ~0.6 sec at 24 FPS
 DROWSY_SCORE_LIMIT = 5
@@ -175,6 +175,9 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
             if drowsy_score >= DROWSY_SCORE_LIMIT:
                 cv2.putText(frame, "DROWSY!", (10, 110),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            if yawn_detected:
+                cv2.putText(frame, "YAWN!", (10, 140),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         cv2.imshow("Blink & Drowsiness Detection", frame)
