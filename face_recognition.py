@@ -42,6 +42,7 @@ drowsy_score = 0
 mouth_open_frames = 0
 blink_in_progress = False
 drowsy_displayed = False
+yawn_detected = False
 
 # Function to draw lines connecting landmarks of the eye
 def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
@@ -147,10 +148,12 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             
             if mouth_open:
                 mouth_open_frames += 1
-                if mouth_open_frames > 10:
+                if mouth_open_frames > 10 and not yawn_detected:
                     print("Yawn detected!")
+                    yawn_detected = True
             else:
                 mouth_open_frames = 0
+                yawn_detected = False
 
 
             # Draw eye landmarks
