@@ -20,10 +20,12 @@ gTTS (Google Text-to-Speech)
 
 # Getting Started
 To run ALEx! on your Raspberry Pi:
-Clone this repository: ```git clone https://github.com/R-umaria/HackThe6ix```
-Navigate to the project directory: ```cd hackthe6ix```
-Install dependencies: ```pip install -r requirements.txt```
-Set your Gemini API Key as an environment variable or in a .env file: ```GEMINI_API_KEY="YOUR_API_KEY"```
-Execute the main script: ```python main.py```
+Clone this repository: ```git clone https://github.com/R-umaria/HackThe6ix```\n
+Navigate to the project directory: ```cd hackthe6ix```\n
+Install dependencies: ```pip install -r requirements.txt```\n
+Set your Gemini API Key as an environment variable or in a .env file: ```GEMINI_API_KEY="YOUR_API_KEY"```\n
+Execute the main script: ```python main.py```\n
 
 # Team
+Saarth Rajan\n Rishi Umaria\n 
+Abel Payyanickal\n \Espe
