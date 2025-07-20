@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+import time
 
 model_path = 'models/face_landmarker.task'
 
@@ -46,6 +47,8 @@ mouth_open_frames = 0
 blink_in_progress = False
 drowsy_displayed = False
 yawn_detected = False
+
+start_time = time.time()
 
 # Function to draw lines connecting landmarks of the eye
 def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
@@ -97,7 +100,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert frame to RGB
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)  # Create MediaPipe image
-        timestamp_ms = int(frame_index * (1000 / 24))  # Estimate timestamp for video mode
+        timestamp_ms = int((time.time() - start_time) * 1000)  # Estimate timestamp for video mode
         results = landmarker.detect_for_video(mp_image, timestamp_ms=timestamp_ms)  # Detect face landmarks
         frame_index += 1
 
