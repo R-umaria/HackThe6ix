@@ -1,8 +1,8 @@
-whisper
 pvporcupine
 sounddevice
 openai-whisper
 pyttsx3
 requests
-coqui-tts
+# coqui-tts
 numpy
+scipy

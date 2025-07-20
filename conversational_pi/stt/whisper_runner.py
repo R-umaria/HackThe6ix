@@ -1,3 +1,4 @@
+# whisper_runner.py
 import whisper
 import sounddevice as sd
 import numpy as np
@@ -10,6 +11,7 @@ def record_audio(duration=5, samplerate=16000):
     print("Listening...")
     audio = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=1)
     sd.wait()
+    print("audio saved")
     return audio.flatten()
 
 def transcribe_audio():
