@@ -83,17 +83,19 @@ class AlexAssistant:
 
     def _run(self):
         """ Start the assistant's conversation loop """
-        self.current_tier = self._get_drowsiness_tier()
+        self.current_tier = self._get_drowsiness_tier()  # Get fatigue level before interacting
         activity = get_activity_for_fatigue(self.current_tier)
 
+        # Adjust prompt based on the current fatigue level
         self.history = [
             f"{STARTING_PROMPT}\nBefore we begin, can you tell me your name and destination?"
         ]
         
-        # Call Gemini to get the initial response
+        # Call Gemini to get the initial response based on the fatigue level
+        prompt = get_prompt(activity, self.current_tier)
         res = client.models.generate_content(
             model="gemini-2.0-flash",
-            contents="\n".join(self.history)
+            contents=prompt
         )
         self.speak(res.text)
         self.history.append(f"Assistant: {res.text}")
