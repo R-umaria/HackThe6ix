@@ -3,6 +3,8 @@ import mediapipe as mp
 import numpy as np
 import time
 
+start_time = time.time()
+
 model_path = 'models/face_landmarker.task'
 
 # Setting up MediaPipe face landmarker modules and options
@@ -42,13 +44,27 @@ MOUTH_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308]
 # Counters and flags for tracking blinks, drowsiness, and yawns
 blink_counter = 0
 frame_counter = 0
-drowsy_score = 0
+drowsy_score = 0.0
 mouth_open_frames = 0
+drowsiness_level = 0
 blink_in_progress = False
 drowsy_displayed = False
 yawn_detected = False
 
-start_time = time.time()
+
+def get_drowsiness_tier_and_color(level):
+    if level <= 5:
+        return "None", (255, 255, 255)
+    elif level <= 25:
+        return "Low", (0, 255, 0)
+    elif level <= 50:
+        return "Medium-Low", (0, 255, 255)
+    elif level <= 75:
+        return "Medium", (0, 165, 255)
+    elif level <= 90:
+        return "Medium-High", (0, 0, 255)
+    else:
+        return "High", (0, 0, 128)
 
 # Function to draw lines connecting landmarks of the eye
 def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
@@ -149,15 +165,14 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                     print(f"Blink detected! Total: {blink_counter}")
 
                 if frame_counter >= DROWSY_FRAMES:
-                    drowsy_score += 1
-                    if drowsy_score >= DROWSY_SCORE_LIMIT and not drowsy_displayed:
-                        print("Drowsiness detected!")
-                        drowsy_displayed = True
-                    elif drowsy_score < DROWSY_SCORE_LIMIT:
-                        drowsy_displayed = False
+                    drowsy_score = min(DROWSY_SCORE_LIMIT, drowsy_score + 0.1)
+                else:
+                    drowsy_score = max(0.0, drowsy_score - 0.05)
+                
+                drowsiness_level = int((drowsy_score / DROWSY_SCORE_LIMIT) * 100)
             else:
                 frame_counter = 0
-                drowsy_score = max(0, drowsy_score - 1)
+                drowsy_score = max(0.0, drowsy_score - 0.05)
                 blink_in_progress = False
             
             # If mouth open for enough frames, mark as yawn
@@ -189,9 +204,14 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
             cv2.putText(frame, f"MAR: {mar:.2f}", (10, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
-            if drowsy_score >= DROWSY_SCORE_LIMIT:
-                cv2.putText(frame, "DROWSY!", (10, 110),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            tier, color = get_drowsiness_tier_and_color(drowsiness_level)
+            cv2.putText(frame, f"Drowsiness: {tier} ({drowsiness_level}%)", (10, 130),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+
+            # if drowsy_score >= DROWSY_SCORE_LIMIT:
+            #     cv2.putText(frame, "DROWSY!", (10, 110),
+            #                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             if yawn_detected:
                 cv2.putText(frame, "YAWN!", (10, 140),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
