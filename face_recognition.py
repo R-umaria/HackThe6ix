@@ -2,6 +2,8 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
+from enum import Enum
+import globals
 
 start_time = time.time()
 
@@ -54,17 +56,17 @@ yawn_detected = False
 
 def get_drowsiness_tier_and_color(level):
     if level <= 5:
-        return "None", (255, 255, 255)
+        return globals.DrowsinessTier.NONE, (255, 255, 255)
     elif level <= 25:
-        return "low", (0, 255, 0)
+        return globals.DrowsinessTier.LOW, (0, 255, 0)
     elif level <= 50:
-        return "medium low", (0, 255, 255)
+        return globals.DrowsinessTier.MEDIUM_LOW, (0, 255, 255)
     elif level <= 75:
-        return "medium", (0, 165, 255)
+        return globals.DrowsinessTier.MEDIUM, (0, 165, 255)
     elif level <= 90:
-        return "medium high", (0, 0, 255)
+        return globals.DrowsinessTier.MEDIUM_HIGH, (0, 0, 255)
     else:
-        return "high", (0, 0, 128)
+        return globals.DrowsinessTier.HIGH, (0, 0, 128)
 
 # Function to draw lines connecting landmarks of the eye
 def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
@@ -208,10 +210,8 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             cv2.putText(frame, f"Drowsiness: {tier} ({drowsiness_level}%)", (10, 130),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
+            globals.drowsiness_tier = tier
 
-            # if drowsy_score >= DROWSY_SCORE_LIMIT:
-            #     cv2.putText(frame, "DROWSY!", (10, 110),
-            #                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             if yawn_detected:
                 cv2.putText(frame, "YAWN!", (10, 140),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
