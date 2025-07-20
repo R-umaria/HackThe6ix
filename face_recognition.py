@@ -56,15 +56,15 @@ def get_drowsiness_tier_and_color(level):
     if level <= 5:
         return "None", (255, 255, 255)
     elif level <= 25:
-        return "Low", (0, 255, 0)
+        return "low", (0, 255, 0)
     elif level <= 50:
-        return "Medium-Low", (0, 255, 255)
+        return "medium low", (0, 255, 255)
     elif level <= 75:
-        return "Medium", (0, 165, 255)
+        return "medium", (0, 165, 255)
     elif level <= 90:
-        return "Medium-High", (0, 0, 255)
+        return "medium high", (0, 0, 255)
     else:
-        return "High", (0, 0, 128)
+        return "high", (0, 0, 128)
 
 # Function to draw lines connecting landmarks of the eye
 def draw_eye_contour(frame, landmarks, eye_indices, color=(0, 255, 0), thickness=2):
