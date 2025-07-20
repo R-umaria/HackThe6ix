@@ -32,7 +32,7 @@ options = FaceLandmarkerOptions(
 EAR_THRESHOLD = 0.25
 BLENDSHAPE_THRESHOLD = 0.5
 MAR_THRESHOLD = 0.5  # Adjusted for mouth openness detection
-BLINK_FRAMES = 2 # Frames required for a blink - avoid false positives
+EYE_CLOSURE_MIN_FRAMES = 2 # Frames required for a closed eyes - avoid false positives
 DROWSY_FRAMES = 15 # ~0.6 sec at 24 FPS
 DROWSY_SCORE_LIMIT = 5
 
@@ -41,13 +41,13 @@ LEFT_EYE = [33, 160, 158, 133, 153, 144]
 RIGHT_EYE = [263, 387, 385, 362, 380, 373]
 MOUTH_INNER = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308]
 
-# Counters and flags for tracking blinks, drowsiness, and yawns
-blink_counter = 0
+# Counters and flags for tracking closed eyes, drowsiness, and yawns
+eye_closure_count = 0
 frame_counter = 0
 drowsy_score = 0.0
 mouth_open_frames = 0
 drowsiness_level = 0
-blink_in_progress = False
+eye_closure_in_progress = False
 drowsy_displayed = False
 yawn_detected = False
 
@@ -85,7 +85,7 @@ def draw_mouth_contour(frame, landmarks, mouth_indices, color=(0, 255, 0), thick
 def euclidean_dist(p1, p2):
     return np.linalg.norm(np.array([p1.x, p1.y]) - np.array([p2.x, p2.y]))
 
-# Computes Eye Aspect Ratio (EAR) for blink detection
+# Computes Eye Aspect Ratio (EAR) for closed eye detection
 def compute_ear(eye_landmarks):
     A = euclidean_dist(eye_landmarks[1], eye_landmarks[5])
     B = euclidean_dist(eye_landmarks[2], eye_landmarks[4])
@@ -134,35 +134,35 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             mar = compute_mar(mouth_landmarks) # Compute MAR
 
             # Default: no blendshape scores
-            left_blink_score = 0
-            right_blink_score = 0
-            
-            # Read blendshape scores for blink detection
+            left_eye_score = 0
+            right_eye_score = 0
+
+            # Read blendshape scores for closed eye detection
             if results.face_blendshapes:
                 blendshapes = results.face_blendshapes[0]
                 for cat in blendshapes:
                     if cat.category_name == 'eyeBlinkLeft':
-                        left_blink_score = cat.score
+                        left_eye_score = cat.score
                     elif cat.category_name == 'eyeBlinkRight':
-                        right_blink_score = cat.score
-            
+                        right_eye_score = cat.score
+
             # Determine if eyes are closed using blendshape or EAR
             eyes_closed = (
-                (left_blink_score > BLENDSHAPE_THRESHOLD and right_blink_score > BLENDSHAPE_THRESHOLD) or 
+                (left_eye_score > BLENDSHAPE_THRESHOLD and right_eye_score > BLENDSHAPE_THRESHOLD) or
                 (avg_ear < EAR_THRESHOLD)
             )
 
             # Determine if mouth is open based on MAR
             mouth_open = mar > MAR_THRESHOLD
 
-            # If eyes closed, update blink/drowsy logic
+            # If eyes closed, update drowsy logic
             if eyes_closed:
                 frame_counter += 1
 
-                if frame_counter >= BLINK_FRAMES and not blink_in_progress:
-                    blink_counter += 1
-                    blink_in_progress = True
-                    print(f"Blink detected! Total: {blink_counter}")
+                if frame_counter >= EYE_CLOSURE_MIN_FRAMES and not eye_closure_in_progress:
+                    eye_closure_count += 1
+                    eye_closure_in_progress = True
+                    print(f"Eye closure detected! Total: {eye_closure_count}")
 
                 if frame_counter >= DROWSY_FRAMES:
                     drowsy_score = min(DROWSY_SCORE_LIMIT, drowsy_score + 0.1)
@@ -173,7 +173,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             else:
                 frame_counter = 0
                 drowsy_score = max(0.0, drowsy_score - 0.05)
-                blink_in_progress = False
+                eye_closure_in_progress = False
             
             # If mouth open for enough frames, mark as yawn
             if mouth_open:
@@ -197,8 +197,8 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             draw_eye_contour(frame, landmarks, RIGHT_EYE)
             draw_mouth_contour(frame, landmarks, MOUTH_INNER)
 
-            # Overlay blink count and aspect ratios on screen
-            cv2.putText(frame, f"Blinks: {blink_counter}", (10, 30),
+            # Overlay closed eyes count and aspect ratios on screen
+            cv2.putText(frame, f"Closed Eyes: {eye_closure_count}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
             cv2.putText(frame, f"EAR: {avg_ear:.2f}", (10, 70),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 1)
@@ -217,7 +217,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         # Show the webcam frame
-        cv2.imshow("Blink & Drowsiness Detection", frame)
+        cv2.imshow("Drowsiness Detection", frame)
         if cv2.waitKey(1) & 0xFF == 27:  # ESC to quit
             break
 
