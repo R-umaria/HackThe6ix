@@ -164,7 +164,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                 if frame_counter >= EYE_CLOSURE_MIN_FRAMES and not eye_closure_in_progress:
                     eye_closure_count += 1
                     eye_closure_in_progress = True
-                    print(f"Eye closure detected! Total: {eye_closure_count}")
+                    # print(f"Eye closure detected! Total: {eye_closure_count}")
 
                 if frame_counter >= DROWSY_FRAMES:
                     drowsy_score = min(DROWSY_SCORE_LIMIT, drowsy_score + 0.1)
@@ -181,7 +181,7 @@ with FaceLandmarker.create_from_options(options) as landmarker:
             if mouth_open:
                 mouth_open_frames += 1
                 if mouth_open_frames > 10 and not yawn_detected:
-                    print("Yawn detected!")
+                    # print("Yawn detected!")
                     yawn_detected = True
             else:
                 mouth_open_frames = 0
