@@ -1,9 +1,10 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse # , StreamingResponse
 import cv2
 import mediapipe as mp
 import numpy as np
 import io
+from typing import TypedDict
 
 model_path = 'models/face_landmarker.task'
 
@@ -51,6 +52,13 @@ eye_closure_in_progress = False
 drowsy_displayed = False
 yawn_detected = False
 
+class AnalysisResult(TypedDict):
+    closed_eyes_count: int
+    ear: float
+    mar: float
+    drowsiness_level: int
+    drowsiness_tier: str
+    yawn_detected: bool
 
 def get_drowsiness_tier_and_color(level):
     if level <= 5:
@@ -104,7 +112,83 @@ def compute_mar(mouth_landmarks):
 
 app = FastAPI()
 
-# Dummy function to "process" the image (no actual processing for now)
+async def analyze_image(frame: np.ndarray) -> dict:
+    # For now, just return the frame as-is (you can add actual processing here later)
+    with FaceLandmarker.create_from_options(options) as landmarker:
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)  # Create MediaPipe image
+
+        results = landmarker.detect(mp_image)
+
+        if results.face_landmarks:
+            landmarks = results.face_landmarks[0]
+            # Draw eye and mouth contours
+            left_eye_landmarks = [landmarks[i] for i in LEFT_EYE]
+            right_eye_landmarks = [landmarks[i] for i in RIGHT_EYE]
+            mouth_landmarks = [landmarks[i] for i in MOUTH_INNER]
+
+            left_ear = compute_ear(left_eye_landmarks)
+            right_ear = compute_ear(right_eye_landmarks)
+            avg_ear = (left_ear + right_ear) / 2.0
+            mar = compute_mar(mouth_landmarks)
+
+            left_eye_score = 0
+            right_eye_score = 0
+
+            if results.face_blendshapes:
+                blendshapes = results.face_blendshapes[0]
+                for cat in blendshapes:
+                    if cat.category_name == 'eyeBlinkLeft':
+                        left_eye_score = cat.score
+                    elif cat.category_name == 'eyeBlinkRight':
+                        right_eye_score = cat.score
+
+            eyes_closed = (
+                (left_eye_score > BLENDSHAPE_THRESHOLD and right_eye_score > BLENDSHAPE_THRESHOLD) or
+                (avg_ear < EAR_THRESHOLD)
+            )
+
+            mouth_open = mar > MAR_THRESHOLD
+
+            if eyes_closed:
+                global frame_counter, eye_closure_count, eye_closure_in_progress, drowsy_score, drowsiness_level
+                frame_counter += 1
+
+                if frame_counter >= EYE_CLOSURE_MIN_FRAMES and not eye_closure_in_progress:
+                    eye_closure_count += 1
+                    eye_closure_in_progress = True
+                    print(f"Eye closure detected! Total: {eye_closure_count}")
+
+                if frame_counter >= DROWSY_FRAMES:
+                    drowsy_score = min(DROWSY_SCORE_LIMIT, drowsy_score + 0.1)
+                else:
+                    drowsy_score = max(0.0, drowsy_score - 0.05)
+                
+                drowsiness_level = int((drowsy_score / DROWSY_SCORE_LIMIT) * 100)
+            else:
+                frame_counter = 0
+                drowsy_score = max(0.0, drowsy_score - 0.05)
+                eye_closure_in_progress = False
+            
+            if mouth_open:
+                global mouth_open_frames, yawn_detected
+                mouth_open_frames += 1
+                if mouth_open_frames > 10 and not yawn_detected:
+                    yawn_detected = True
+            else:
+                mouth_open_frames = 0
+                yawn_detected = False
+        
+        tier, _ = get_drowsiness_tier_and_color(drowsiness_level)
+
+        return {
+            "closed_eyes_count": eye_closure_count,
+            "ear": round(avg_ear, 3),
+            "mar": round(mar, 3),
+            "drowsiness_level": drowsiness_level,
+            "drowsiness_tier": tier,
+            "yawn_detected": yawn_detected
+        }
+
 async def image_processing(frame: np.ndarray) -> np.ndarray:
     # For now, just return the frame as-is (you can add actual processing here later)
     with FaceLandmarker.create_from_options(options) as landmarker:
@@ -198,8 +282,8 @@ async def image_processing(frame: np.ndarray) -> np.ndarray:
         
         return frame
 
-@app.post("/upload-image")
-async def upload_image(image: UploadFile = File(...)):
+@app.post("/analyze")
+async def analyze(image: UploadFile = File(...)):
     try:
         # Read the image data
         contents = await image.read()
@@ -213,14 +297,9 @@ async def upload_image(image: UploadFile = File(...)):
                 "message": "Invalid image data",
             })
 
-        processed_frame = await image_processing(frame)
+        json = await analyze_image(frame)
 
-        # Convert processed frame back to bytes for response
-        _, img_encoded = cv2.imencode('.jpg', processed_frame)
-        img_bytes = img_encoded.tobytes()
-
-        # Capture end time after processing the image
-        return StreamingResponse(io.BytesIO(img_bytes), media_type="image/jpeg")
+        return JSONResponse(content=json)
 
     except Exception as e:
         # Log the error internally (to console here)
