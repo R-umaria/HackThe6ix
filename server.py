@@ -5,6 +5,7 @@ import mediapipe as mp
 import numpy as np
 import io
 from typing import TypedDict
+import uvicorn
 
 model_path = 'models/face_landmarker.task'
 
@@ -312,5 +313,12 @@ async def analyze(image: UploadFile = File(...)):
         })
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5001)
+    # would work but bro ... you should really use the command line for this
+
+    # run with the command below
+    # uvicorn server:app --host 0.0.0.0 --port 5001 --workers 4
+    # why 4 workers? Because it can handle multiple requests concurrently, improving performance for multiple users.
+    # Note: This is a basic setup. In production, you might want to handle CORS, logging, and other configurations.
+
+    # Note: Don't use 0.0.0.0 unless you trust the network, as it exposes the server to all interfaces.
