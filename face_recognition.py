@@ -211,6 +211,8 @@ with FaceLandmarker.create_from_options(options) as landmarker:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
             globals.drowsiness_tier = tier
+            with open("tier.txt", "w") as f:
+                f.write(tier.value)
 
             if yawn_detected:
                 cv2.putText(frame, "YAWN!", (10, 140),
