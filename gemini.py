@@ -10,7 +10,6 @@ class FatigueLevel(Enum):
     MEDIUM = "Medium"
     MEDIUM_HIGH = "Medium High"
     HIGH = "High"
-    EXTREME = "Extreme"
 
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GEMINI_API")
