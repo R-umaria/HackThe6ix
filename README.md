@@ -27,4 +27,4 @@ Set your Gemini API Key as an environment variable or in a .env file: ```GEMINI_
 Execute the main script: ```python main.py```.
 
 # Team
-Saarth Rajan, Rishi Umaria, Abel Payyanickal, Espe
+Saarth Rajan, Rishi Umaria, Abel Payyanickal, Espe Marchant Valenzuela
